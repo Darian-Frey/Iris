@@ -1,0 +1,10 @@
+[package]
+name = "iris-proto"
+description = "EVision V1 packet building and parsing for the Tecware Phantom RGB; no I/O"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]

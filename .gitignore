@@ -1,0 +1,8 @@
+# Original documentation bundle (contents already extracted into the repository)
+iris-docs.zip
+
+# Build output (see BUILD.md)
+/target/
+/build/
+/build-dir/
+/.flatpak-builder/

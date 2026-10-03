@@ -1,0 +1,5 @@
+# Iris: grant the logged-in user access to the Tecware Phantom (EVision 320f:5064)
+# Install on the HOST (a Flatpak cannot do this):
+#   sudo cp 60-iris-keyboard.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+KERNEL=="hidraw*", ATTRS{idVendor}=="320f", ATTRS{idProduct}=="5064", TAG+="uaccess"
