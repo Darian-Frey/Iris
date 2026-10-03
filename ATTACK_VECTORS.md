@@ -11,9 +11,9 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-001 Sending a command whose meaning is unverified on this firmware
 **Severity:** Critical
 **Description.** The keyboard answers unknown or misused commands with a normal-looking reply and status `0x00`, so a harmful write is indistinguishable from a harmless read at the time it is sent. The cost of a wrong guess is a corrupted keymap or configuration block on a device with no known-good image to restore.
-**Detection.** Not implemented (planned: `iris-proto` exposes a closed command enum and no raw-command API; unit test asserts every constructible packet's command byte is in the PROTOCOL.md allow-list; `tools/` scripts import the same list).
+**Detection.** Partly implemented. `iris-proto` exposes a closed `Command` enum and no raw-command API; requests are built only through typed constructors. Tests `allow_list_matches_protocol`, `from_byte_accepts_only_the_allow_list`, `forbidden_commands_are_absent` and `every_constructible_request_is_allow_listed`. Still planned: `tools/` scripts import the same list (IMP-001).
 **Related decisions.** D-005, D-004, D-014.
-**History.** Identified 2026-09-20 from BUG-001.
+**History.** Identified 2026-09-20 from BUG-001. Enum and tests landed in `iris-proto` 2026-10-03.
 
 ### AV-002 Cross-dialect command collision
 **Severity:** Critical
@@ -45,7 +45,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-016 Overwriting device-specific bytes with a canned block
 **Severity:** Critical
 **Description.** Prior art changes the active profile by writing a fixed 44-byte capability block captured from a different keyboard. Bytes 4–11 of that block differ on this board and their meaning is unknown.
-**Detection.** Not implemented (planned: `iris-proto` offers no constructor for a whole capability block, only "patch byte N of a block previously read"; test asserts all other bytes round-trip unchanged).
+**Detection.** Partly implemented. `iris-proto`'s `Capabilities` and `ConfigBlock` can only be built by parsing a device reply and keep the raw bytes whole; neither can be serialised for writing. Still planned with `0x04` (F-005): "patch byte N of a block previously read", with a test that all other bytes round-trip unchanged.
 **Related decisions.** D-005.
 **History.** Found 2026-09-20 comparing dokutan's `_data_profile` with this board's `0x03` reply.
 
@@ -60,7 +60,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-008 Reply desynchronisation
 **Severity:** Major
 **Description.** Key-press, media-key and mouse reports (IDs 1, 2, 3, 5) arrive on the same hidraw node as vendor replies. Taking the next read as "the reply" will misparse a keystroke as device state, and the real reply will then be misattributed to the following request.
-**Detection.** Not implemented (planned: unit tests interleaving foreign reports; reply accepted only on report ID, command and offset echo). The probe script already filters by report ID.
+**Detection.** Partly implemented. `Reply::parse` rejects other report IDs as `ForeignReport` and `Reply::answers` requires bytes 1–6 to echo the request; tests `foreign_reports_are_rejected` and `interleaved_reports_leave_the_reply_intact` in `iris-proto` (2026-10-03). Still planned: the same test against the transport in `iris-device`. The probe script already filters by report ID.
 **Related decisions.** D-003.
 
 ### AV-009 Concurrent access by another tool

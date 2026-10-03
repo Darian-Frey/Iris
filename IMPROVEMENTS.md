@@ -44,6 +44,16 @@ Effort vocabulary: trivial | small | medium | large.
 **Trade-offs.** Another tool to maintain; strict bidirectionality creates noise for weak relationships, tempting people to omit useful one-way pointers. Could instead be shared across all of the author's repositories rather than living here.
 **Notes.** Until it exists, CLAUDE.md states that cross-references may be stale.
 
+### IMP-004: Keep raw probe captures as test fixtures
+**Status:** suggested
+**Found:** 2026-10-03 (writing `iris-proto` tests)
+**Location:** crates/iris-proto/src/config.rs, crates/iris-proto/src/capability.rs (tests)
+**Effort:** trivial
+**Description.** PROTOCOL.md records only decoded values for the three configuration replies and 35 of the capability block's 44 payload bytes. The `iris-proto` parser tests therefore use reconstructed payloads with every unrecorded byte set to zero, which cannot catch a parser that misreads real data.
+**Proposal.** Re-run `tools/phantom_probe.py` (read-only), save its output under a fixtures directory (for example `crates/iris-proto/tests/fixtures/2026-xx-xx-probe.txt`), and load the tests' payloads from it. Record the full 44-byte capability payload in PROTOCOL.md §4.
+**Trade-offs.** Fixtures tie tests to one board's state at one moment; if profiles are changed later the capture no longer describes the keyboard, which is fine for a parser test but should be stated in the fixture header.
+**Notes.** Related: F-004, AV-016, PROTOCOL.md §4–§5.
+
 ## Applied
 
 None.

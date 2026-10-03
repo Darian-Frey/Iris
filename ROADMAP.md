@@ -20,11 +20,11 @@ Phases are append-only. Mark complete with an ISO date; do not delete.
 
 ## Phase 1 — Device core
 **Goal:** Talk to the keyboard safely from Rust, from inside a Flatpak, with a minimal CLI.
-**Status:** Not started
+**Status:** In progress (`iris-proto` done 2026-10-03)
 **Features delivered:** F-001, F-002, F-003, F-004, F-012 (device-side: diffing and counter), F-025; F-023 and F-024 in skeleton form
 **Deliverables:**
-- [ ] Cargo workspace; `iris-proto` with packet builder/parser, closed command enum, address helpers, capability parser, LED map loader
-- [ ] Unit tests including the allow-list test (AV-001) and interleaved-report test (AV-008)
+- [x] Cargo workspace; `iris-proto` with packet builder/parser, closed command enum, address helpers, capability parser, LED map loader
+- [x] Unit tests including the allow-list test (AV-001) and interleaved-report test (AV-008) (2026-10-03; AV-008 at packet level, device-level test follows with `iris-device`)
 - [ ] In-memory simulated keyboard implementing V1 (ARCHITECTURE.md §Testing seam)
 - [ ] `iris-device`: sysfs discovery, identity check (AV-007), exchange with echo matching, transaction guard (AV-005), hotplug
 - [ ] Temporary direct-mode `irisctl` (talks to the device itself, no daemon yet): `info`, `get`, `set-mode`, `set-key`, `set-map`, `walk` (lights one LED at a time for AV-006)

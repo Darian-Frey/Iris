@@ -4,12 +4,12 @@
 Iris is a Linux controller for the Tecware Phantom RGB keyboard (EVision V1 protocol, USB `320f:5064`): a Rust daemon that owns the device and switches lighting profiles by focused application, a Rust CLI, and a C++/Qt 6 editor, all shipped as one Flatpak. The protocol is reverse-engineered and the hardware cannot be re-imaged, so safety of what is sent to the device outranks every other concern.
 
 ## Current state
-- Documentation set: complete first draft, 2026-09-20. No production code exists beyond the workspace skeleton.
+- Documentation set: complete first draft, 2026-09-20. Production code: `iris-proto` only.
 - `tools/phantom_probe.py`: working, read-only, run successfully on the reference keyboard.
 - `data/phantom_iso_uk_leds.toml`: derived; 86 of 88 entries trusted, LEDs 64 and 105 unverified.
 - `data/60-iris-keyboard.rules`: working on the reference machine.
 - `BUILD.md`: a plan, not a record. Nothing in it has been executed except the udev section.
-- Cargo workspace (2026-10-03): `crates/iris-proto` is the only member and is an empty skeleton; build, test, clippy and fmt pass.
+- `crates/iris-proto` (2026-10-03): closed `Command` enum, typed request constructors, reply parser, checksum, address helpers, config-block and capability parsers, LED map loader; 31 unit tests; clippy and fmt clean. The config and capability test fixtures are reconstructed from PROTOCOL.md's decoded values, not raw captures (IMP-004).
 - `crates/iris-device`, `crates/irisd`, `crates/irisctl`, `gui/`, `flatpak/`: empty placeholder directories; no code yet.
 - Outstanding hardware checks the author has not yet reported back on: post-BUG-001 key check; LEDs 64/105; whether profile 1 really is a dim, slow spectrum cycle; OpenRGB apply latency.
 - Cross-references between documents were aligned by hand and may be stale (IMP-003).
@@ -17,8 +17,8 @@ Iris is a Linux controller for the Tecware Phantom RGB keyboard (EVision V1 prot
 ## Active task
 Phase 1 — Device core (ROADMAP.md). Start with `iris-proto`:
 1. ~~Cargo workspace with `crates/iris-proto`.~~ Done 2026-10-03.
-2. `Command` as a closed enum containing exactly the PROTOCOL.md allow-list; packet builder and parser; checksum; config and colour address helpers; capability-block parser; LED map loader.
-3. Tests: checksum against the known-good packets in PROTOCOL.md (`04 2f 00 03 2c…`, `04 67 00 05 38 2a…`); the allow-list test (AV-001); parsing of the three captured config replies and the capability reply.
+2. ~~`Command` as a closed enum containing exactly the PROTOCOL.md allow-list; packet builder and parser; checksum; config and colour address helpers; capability-block parser; LED map loader.~~ Done 2026-10-03.
+3. ~~Tests: checksum against the known-good packets in PROTOCOL.md (`04 2f 00 03 2c…`, `04 67 00 05 38 2a…`); the allow-list test (AV-001); parsing of the three captured config replies and the capability reply.~~ Done 2026-10-03, with reconstructed fixtures (IMP-004).
 4. Then the in-memory simulated keyboard, then `iris-device`.
 
 Acceptance for the phase is in ROADMAP.md. Features: F-001, F-002, F-003, F-004, F-012 (device side), F-025.
