@@ -15,7 +15,7 @@ Phases are append-only. Mark complete with an ISO date; do not delete.
 - [x] Host udev rule written and working
 - [ ] Carried: confirm LEDs 64 and 105 (PROTOCOL.md §9 item 1)
 - [ ] Carried: confirm all keys and Fn combinations behave normally after BUG-001 (§9 item 6)
-- [ ] Carried: cross-check decoded profile 1 settings against the keyboard's visible behaviour
+- [x] Carried: cross-check decoded profile 1 settings against the keyboard's visible behaviour (2026-10-04: profile 1 had been changed with the Fn keys; the new values, mode `0x04`, brightness 4, speed 0, show as a bright colour cycle)
 **Acceptance:** A documented protocol with every fact tagged HW / SRC / OPEN, and a known-safe command set.
 
 ## Phase 1 — Device core

@@ -75,12 +75,15 @@ OpenRGB also implements a newer "EVision V2" dialect with a non-saving direct mo
 
 ## 4. Capability block (command `0x03`)
 
-Reply payload observed on the reference board: **HW**
+Reply payload observed on the reference board (all 44 bytes, 2026-10-04; identical to the first 35 bytes recorded on 2026-09-20): **HW**
 
 ```
 55 aa ff 02 0f 32 64 50 02 01 00 50 00 00 00 00
 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 11 10 12 14
+00 00 00 00 00 00 00 00 00
 ```
+
+Raw capture: `crates/iris-proto/fixtures/probe-2026-10-04.txt`.
 
 | Payload byte | Meaning | Status |
 |--------------|---------|--------|
@@ -88,10 +91,11 @@ Reply payload observed on the reference board: **HW**
 | 2–9, 11 | Device-specific; differs from the sibling board's `45 0c 2f 65 03 01 00 08` at bytes 4–11 | OPEN |
 | 10 | Active profile, zero-based (packet byte 18) | SRC; read as `00` = profile 1 on HW |
 | 16–34 | List of supported mode IDs | HW (matches the mode table exactly) |
+| 35–43 | Zero on the reference board; meaning unknown | OPEN |
 
 ## 5. Configuration space (commands `0x05` / `0x06`)
 
-Three profiles, stride `0x2A` (42 bytes). Address = `profile_index × 0x2A + parameter`. **SRC** for the stride; the three reads at `0x00`, `0x2A`, `0x54` returned three coherent blocks. **HW**
+Three profiles, stride `0x2A` (42 bytes). Address = `profile_index × 0x2A + parameter`. **HW** (promoted from SRC by the author, 2026-10-04): the three reads at `0x00`, `0x2A`, `0x54` returned three coherent blocks, and a `0x38`-byte read at one profile's base runs into the next profile exactly as that profile's own read shows.
 
 ### Parameters
 
@@ -107,6 +111,12 @@ Three profiles, stride `0x2A` (42 bytes). Address = `profile_index × 0x2A + par
 | `0x11` | "Surmount" mode colour selector | 1 | SRC |
 
 Observed on the reference board, 2026-09-20 (not yet cross-checked against what the keyboard was visibly doing): profile 1 = mode `0x04`, brightness 1, speed 2, colour `96 96 9a`; profiles 2 and 3 = mode `0x01`, brightness 4, speed 2, random on.
+
+Observed again 2026-10-04 (raw capture `crates/iris-proto/fixtures/probe-2026-10-04.txt`): profile 1 = mode `0x04`, brightness 4, speed 0, direction 0, random off, colour `49 00 ff`; profiles 2 and 3 unchanged. The author changed profile 1 with the keyboard's own Fn-key controls between the two reads, so onboard controls write configuration space. With the 2026-10-04 values the author reports the keyboard cycling through colours, brightly. **HW**. This is consistent with mode `0x04` being a colour cycle, but it does not by itself settle the brightness or speed ranges (§9 item 3) or promote the mode names.
+
+- A `0x38`-byte read at a profile's base returns that profile's `0x2A` bytes followed by the first `0x0E` bytes of the next profile, which match the separate read of that profile byte for byte. **HW**
+- Block byte `0x13` reads `0xFF` in all three profiles. It is not in the parameter table and its meaning is unknown. **OPEN**
+- All other bytes of the three blocks read zero.
 
 **Ranges are contradictory between sources.** **OPEN**
 - Brightness: OpenRGB uses 0–4; dokutan uses 0–9 for non-Ajazz boards.
@@ -140,7 +150,8 @@ dokutan changes the active profile by sending command `0x04` with a fixed 44-byt
 - Flat array, 3 bytes per LED in R, G, B order. Address = `profile_index × 0x200 + led_index × 3`. **SRC**; single-key write at the right address confirmed on HW via OpenRGB (LED 59 = J).
 - Bulk write: consecutive packets of up to 54 bytes. A full 118-slot map is 354 bytes, 7 packets. **SRC**
 - A single key is one 3-byte packet inside a begin/end pair. **SRC**
-- The reference board's custom map read back as all zeros (never set). **HW**
+- The reference board's custom map read back as all zeros (never set) on 2026-09-20. **HW**
+- On 2026-10-04 the first packet of profile 1's map (LEDs 0–17) read back `ff 00 00` (red) for every LED, so the map has been written in between, presumably by OpenRGB during write-path validation. **HW** for the bytes; cause unconfirmed.
 - Whether `0x11` writes land in flash or RAM, and how long a transaction takes, is unmeasured. Iris assumes flash. **OPEN** (AV-004)
 
 ## 8. LED index map

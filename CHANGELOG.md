@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com). IDs refer to FEAT
 - `data/60-iris-keyboard.rules`: host udev rule for `320f:5064`.
 - Cargo workspace (edition 2024, GPL-3.0-or-later) with an empty `iris-proto` crate that forbids `unsafe` and denies `unwrap`/`expect` outside tests (D-005, F-001 groundwork).
 - `iris-proto`: closed `Command` enum holding exactly the allow-list, typed request constructors (no raw command or address API), reply parser with report-ID filtering and echo matching, checksum, configuration and colour address helpers, configuration-block and capability-block parsers, LED map loader; tests for the known-good packets, the allow-list and interleaved reports (F-001 to F-004, D-005, AV-001, AV-008, AV-016).
+- `crates/iris-proto/fixtures/probe-2026-10-04.txt`: raw read-only probe capture from the reference board; `iris-proto` parser tests now run on it instead of reconstructed payloads (IMP-004). PROTOCOL.md records the full 44-byte capability block, the changed profile 1 settings, block byte `0x13` (OPEN) and the now non-empty custom map. The configuration stride `0x2A` is promoted from SRC to HW on the author's decision; the profile 1 cross-check is closed.
 - Phase 0 reconnaissance completed: hardware identified, EVision V1 protocol confirmed readable on hardware, write path validated through OpenRGB.
 
 ### Fixed

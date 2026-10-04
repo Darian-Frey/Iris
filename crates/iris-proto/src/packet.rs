@@ -438,4 +438,33 @@ mod tests {
             .unwrap();
         assert_eq!(reply.payload()[..2], [0x55, 0xaa]);
     }
+
+    #[test]
+    fn captured_replies_answer_their_requests() {
+        use crate::fixtures::{CAPABILITIES, COLOURS, CONFIG, probe_reply};
+        let mut pairs = vec![(CAPABILITIES, Request::read_capabilities())];
+        for (label, profile) in CONFIG.into_iter().zip(Profile::ALL) {
+            pairs.push((label, Request::read_config(profile)));
+        }
+        pairs.push((COLOURS, Request::read_colour_map(Profile::One)[0].clone()));
+        for (label, request) in pairs {
+            let reply = Reply::parse(&probe_reply(label)).unwrap();
+            assert!(reply.answers(&request), "{label}");
+            assert_eq!(reply.as_bytes()[1..7], request.encode()[1..7], "{label}");
+            assert_eq!(reply.status(), 0, "{label}");
+        }
+    }
+
+    #[test]
+    fn captured_colour_reply_holds_eighteen_leds() {
+        let reply = Reply::parse(&crate::fixtures::probe_reply(crate::fixtures::COLOURS)).unwrap();
+        assert_eq!(reply.payload().len(), MAX_COLOUR_PAYLOAD);
+        // LEDs 0-17 of profile 1 read back red on 2026-10-04.
+        assert!(
+            reply
+                .payload()
+                .chunks_exact(3)
+                .all(|rgb| rgb == [0xff, 0x00, 0x00])
+        );
+    }
 }

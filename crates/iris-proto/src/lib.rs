@@ -16,6 +16,8 @@ mod capability;
 mod command;
 mod config;
 mod error;
+#[cfg(test)]
+mod fixtures;
 mod leds;
 mod packet;
 

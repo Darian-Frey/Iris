@@ -133,46 +133,46 @@ impl ConfigBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixtures::{CONFIG, probe_reply};
+    use crate::{Profile, Reply, Request};
 
-    // Reconstructed from the values PROTOCOL.md §5 records for 2026-09-20.
-    // The raw probe output was not preserved, so every byte not listed there
-    // is zero here. Replace with the captured bytes when available.
-    fn profile_one() -> [u8; 0x38] {
-        let mut payload = [0u8; 0x38];
-        payload[..8].copy_from_slice(&[0x04, 1, 2, 0, 0, 0x96, 0x96, 0x9a]);
-        payload
-    }
-
-    fn profile_two_or_three() -> [u8; 0x38] {
-        let mut payload = [0u8; 0x38];
-        payload[..5].copy_from_slice(&[0x01, 4, 2, 0, 0xFF]);
-        payload
+    fn captured_payload(profile: Profile) -> Vec<u8> {
+        let reply = Reply::parse(&probe_reply(CONFIG[usize::from(profile.index())])).unwrap();
+        assert!(reply.answers(&Request::read_config(profile)));
+        reply.payload().to_vec()
     }
 
     #[test]
-    fn parses_profile_one() {
-        let block = ConfigBlock::parse(&profile_one()).unwrap();
+    fn parses_captured_profile_one() {
+        let block = ConfigBlock::parse(&captured_payload(Profile::One)).unwrap();
         assert_eq!(block.mode(), Some(Mode::SpectrumCycle));
-        assert_eq!(block.brightness(), 1);
-        assert_eq!(block.speed(), 2);
-        assert_eq!(block.mode_colour(), Rgb::new(0x96, 0x96, 0x9a));
-    }
-
-    #[test]
-    fn parses_profiles_two_and_three() {
-        let block = ConfigBlock::parse(&profile_two_or_three()).unwrap();
-        assert_eq!(block.mode(), Some(Mode::ColourWaveShort));
         assert_eq!(block.brightness(), 4);
-        assert_eq!(block.speed(), 2);
-        assert_eq!(block.random_colour(), Some(true));
+        assert_eq!(block.speed(), 0);
+        assert_eq!(block.direction(), 0);
+        assert_eq!(block.random_colour(), Some(false));
+        assert_eq!(block.mode_colour(), Rgb::new(0x49, 0x00, 0xff));
     }
 
     #[test]
-    fn keeps_raw_bytes_and_ignores_next_profile() {
-        let mut payload = profile_one();
-        payload[0x2A] = 0xEE; // first byte of the next profile
-        let block = ConfigBlock::parse(&payload).unwrap();
-        assert_eq!(block.raw()[..], payload[..0x2A]);
+    fn parses_captured_profiles_two_and_three() {
+        for profile in [Profile::Two, Profile::Three] {
+            let block = ConfigBlock::parse(&captured_payload(profile)).unwrap();
+            assert_eq!(block.mode(), Some(Mode::ColourWaveShort));
+            assert_eq!(block.brightness(), 4);
+            assert_eq!(block.speed(), 2);
+            assert_eq!(block.random_colour(), Some(true));
+        }
+    }
+
+    #[test]
+    fn read_overruns_into_the_next_profile() {
+        // A 0x38-byte read at a profile's base spans 0x2A bytes of that
+        // profile and 0x0E of the next; the captures agree with each other.
+        let one = captured_payload(Profile::One);
+        let two = captured_payload(Profile::Two);
+        assert_eq!(one[0x2A..], two[..0x0E]);
+        let block = ConfigBlock::parse(&one).unwrap();
+        assert_eq!(block.raw()[..], one[..0x2A]);
     }
 
     #[test]

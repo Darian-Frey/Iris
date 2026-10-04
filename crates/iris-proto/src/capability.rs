@@ -66,53 +66,46 @@ impl Capabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixtures::{CAPABILITIES, probe_reply};
+    use crate::{Reply, Request};
 
-    /// The 35 bytes PROTOCOL.md §4 records from the reference board. The
-    /// remaining 9 bytes of the 44-byte payload were not recorded; they are
-    /// zero here. Replace with the full capture when available.
-    const REFERENCE: [u8; 35] = [
-        0x55, 0xaa, 0xff, 0x02, 0x0f, 0x32, 0x64, 0x50, 0x02, 0x01, 0x00, 0x50, 0x00, 0x00, 0x00,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f, 0x11, 0x10, 0x12, 0x14,
-    ];
-
-    fn reference_payload() -> [u8; CAPABILITY_SIZE] {
-        let mut payload = [0u8; CAPABILITY_SIZE];
-        payload[..REFERENCE.len()].copy_from_slice(&REFERENCE);
-        payload
+    fn captured_payload() -> [u8; CAPABILITY_SIZE] {
+        let reply = Reply::parse(&probe_reply(CAPABILITIES)).unwrap();
+        assert!(reply.answers(&Request::read_capabilities()));
+        reply.payload().try_into().unwrap()
     }
 
     #[test]
-    fn parses_reference_board() {
-        let caps = Capabilities::parse(&reference_payload()).unwrap();
+    fn parses_captured_block() {
+        let caps = Capabilities::parse(&captured_payload()).unwrap();
         assert_eq!(caps.active_profile(), Some(Profile::One));
-        let modes = caps.advertised_modes();
-        assert_eq!(modes.len(), 19);
-        let mut sorted: Vec<u8> = modes.iter().map(|m| m.id()).collect();
-        sorted.sort_unstable();
-        let mut all: Vec<u8> = Mode::ALL.iter().map(|m| m.id()).collect();
-        all.sort_unstable();
-        assert_eq!(sorted, all);
-        assert_eq!(caps.raw()[..], reference_payload()[..]);
+        let ids: Vec<u8> = caps.advertised_modes().iter().map(|m| m.id()).collect();
+        // Advertised order on the reference board: 0x11 precedes 0x10.
+        let expected = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x11, 0x10, 0x12, 0x14,
+        ];
+        assert_eq!(ids, expected);
+        assert_eq!(caps.raw()[..], captured_payload()[..]);
     }
 
     #[test]
     fn rejects_v2_magic_and_short_payloads() {
-        let mut payload = reference_payload();
+        let mut payload = captured_payload();
         payload[..2].copy_from_slice(&[0xaa, 0x55]);
         assert_eq!(
             Capabilities::parse(&payload),
             Err(Error::BadMagic([0xaa, 0x55]))
         );
         assert_eq!(
-            Capabilities::parse(&REFERENCE),
+            Capabilities::parse(&captured_payload()[..35]),
             Err(Error::PayloadTooShort { len: 35, need: 44 })
         );
     }
 
     #[test]
     fn unknown_active_profile_is_none() {
-        let mut payload = reference_payload();
+        let mut payload = captured_payload();
         payload[ACTIVE_PROFILE] = 3;
         assert_eq!(
             Capabilities::parse(&payload).unwrap().active_profile(),

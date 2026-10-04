@@ -3,8 +3,7 @@
 
 use crate::{Error, Result};
 
-/// Distance between consecutive profiles in configuration space. SRC stride,
-/// HW-coherent reads at `0x00`, `0x2A`, `0x54`.
+/// Distance between consecutive profiles in configuration space. HW.
 pub const CONFIG_STRIDE: u16 = 0x2A;
 
 /// Distance between consecutive profiles in colour space. SRC.
