@@ -32,8 +32,8 @@ pub use config::{ConfigBlock, Setting};
 pub use error::Error;
 pub use leds::LedMap;
 pub use packet::{
-    HEADER_LEN, MAX_COLOUR_PAYLOAD, MAX_PAYLOAD, PACKET_LEN, READ_CONFIG_SIZE, REPORT_ID, Reply,
-    Request, checksum,
+    COLOUR_REGION_SLOTS, HEADER_LEN, MAX_COLOUR_PAYLOAD, MAX_PAYLOAD, PACKET_LEN, READ_CONFIG_SIZE,
+    REPORT_ID, Reply, Request, checksum,
 };
 
 /// Result type used throughout this crate.

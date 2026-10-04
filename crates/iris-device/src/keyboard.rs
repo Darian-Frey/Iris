@@ -64,7 +64,8 @@ impl<T: Transport> Keyboard<T> {
         &self.device
     }
 
-    /// The device, for fault injection in tests.
+    /// The device: for fault injection in tests, and for the experimental
+    /// slot probe, which addresses colour slots outside the shadow copy.
     pub fn device_mut(&mut self) -> &mut Device<T> {
         &mut self.device
     }

@@ -6,7 +6,7 @@ Iris is a Linux controller for the Tecware Phantom RGB keyboard (EVision V1 prot
 ## Current state
 - Documentation set: complete first draft, 2026-09-20. Production code: `iris-proto` only.
 - `tools/phantom_probe.py`: working, read-only, run successfully on the reference keyboard.
-- `data/phantom_iso_uk_leds.toml`: derived; 87 of 88 entries confirmed on hardware by `irisctl walk` on 2026-10-04 and tagged HW; entry 64 (`Hash`) is wrong. The `#` key lights in built-in effects, but its custom-colour slot is not in 0–117.
+- `data/phantom_iso_uk_leds.toml`: derived; 87 of 88 entries confirmed on hardware by `irisctl walk` on 2026-10-04 and tagged HW; entry 64 (`Hash`) is wrong. The `#` key lights in built-in effects, but no slot in 0–169 lights it in custom mode.
 - `data/60-iris-keyboard.rules`: working on the reference machine.
 - `BUILD.md`: a plan, not a record. Nothing in it has been executed except the udev section.
 - `crates/iris-proto` (2026-10-03): closed `Command` enum, typed request constructors, reply parser, checksum, address helpers, config-block and capability parsers, LED map loader; 33 unit tests; clippy and fmt clean. Parser tests run on the author's raw probe capture of 2026-10-04 (`crates/iris-proto/fixtures/`, IMP-004).
@@ -16,7 +16,7 @@ Iris is a Linux controller for the Tecware Phantom RGB keyboard (EVision V1 prot
 - `crates/irisctl` (2026-10-04): Phase 1 direct mode under the development-tool exception: `info`, `get`, `keys`, `modes`, `set-mode`, `set-key`, `set-map`, `walk`, `--dry-run`; saves a lighting snapshot before each write command (F-029, minimal). 92 tests across the workspace.
 - `crates/irisd`, `gui/`, `flatpak/`: empty placeholder directories; no code yet.
 - 2026-10-04 observations (PROTOCOL.md §5, §7): the author changed profile 1 and its colour map with OpenRGB between the probe and `read_state`; OpenRGB left the random byte at `0x01` (meaning OPEN) and colour slots 49 and 65 set, which are not in the LED map. Two consecutive `read_state` runs were identical, so colour reads return stored memory.
-- Outstanding hardware checks the author has not yet reported back on: post-BUG-001 key check; custom-colour slot for the ISO `#` key; OpenRGB apply latency. (Profile 1 cross-check closed 2026-10-04: changed by the author with the Fn keys; reads mode `0x04`, brightness 4, speed 0 and shows as a bright colour cycle.)
+- Outstanding hardware checks the author has not yet reported back on: post-BUG-001 key check; whether custom mode can colour the ISO `#` key at all; OpenRGB apply latency. (Profile 1 cross-check closed 2026-10-04: changed by the author with the Fn keys; reads mode `0x04`, brightness 4, speed 0 and shows as a bright colour cycle.)
 - Cross-references between documents were aligned by hand and may be stale (IMP-003).
 
 ## Active task
@@ -28,7 +28,7 @@ Phase 1 — Device core (ROADMAP.md). Start with `iris-proto`:
 5. ~~`iris-device` proper: sysfs discovery, identity check (AV-007), exchange with report-ID filtering and echo matching (AV-008), transaction guard (AV-005), hotplug.~~ Done 2026-10-04; read path confirmed on hardware the same day.
 6. ~~Write minimisation (F-012 device side).~~ Done 2026-10-04 (`iris_device::Keyboard`).
 7. ~~Temporary direct-mode `irisctl`.~~ Done 2026-10-04; read-only commands and dry runs confirmed on hardware.
-8. First Iris writes run by the author 2026-10-04: `set-key` (J green, read-back confirmed; second run sent nothing) and `walk Hash #105 J` (105 = `\`, 64 lights nothing). `walk --unmapped`: none of the 30 unassigned slots lights anything. `walk --all`: every mapped LED except 64 lit its named key; `#` is at none of slots 0–117 but lights in built-in effects. `0x01`, `0x02`, `0x11`, the `0x06` mode write and 87 LED entries promoted to HW (author, 2026-10-04). Next: with the author's approval, probe slots 118–169 for `#`; PROTOCOL.md §9 items 2 and 3; then the skeleton Flatpak manifest.
+8. First Iris writes run by the author 2026-10-04: `set-key` (J green, read-back confirmed; second run sent nothing) and `walk Hash #105 J` (105 = `\`, 64 lights nothing). `walk --unmapped`: none of the 30 unassigned slots lights anything. `walk --all`: every mapped LED except 64 lit its named key; `#` is at none of slots 0–117 but lights in built-in effects. `0x01`, `0x02`, `0x11`, the `0x06` mode write and 87 LED entries promoted to HW (author, 2026-10-04). Slot probe for `#` (`irisctl walk --beyond-map`, PROTOCOL.md §9 item 8) run 2026-10-04: slots 118–169 all zero, none lights anything, restored identically. No slot 0–169 lights `#` in custom mode; the key lights normally in effects and types fine, so a firmware custom-mode gap is most likely (OPEN; IMP-005). Next: PROTOCOL.md §9 items 2 and 3; then the skeleton Flatpak manifest.
 
 Acceptance for the phase is in ROADMAP.md. Features: F-001, F-002, F-003, F-004, F-012 (device side), F-025.
 

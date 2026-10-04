@@ -26,6 +26,11 @@ pub const READ_CONFIG_SIZE: u8 = 0x38;
 
 const MAX_COLOURS_PER_PACKET: usize = MAX_COLOUR_PAYLOAD / 3;
 
+/// Whole 3-byte slots in one profile's `0x200`-byte colour region (170).
+/// Only slots below [`COLOUR_SLOTS`] are in normal use; the rest are reached
+/// solely by the `experimental_` constructors.
+pub const COLOUR_REGION_SLOTS: usize = crate::COLOUR_STRIDE as usize / 3;
+
 /// Checksum: 16-bit wrapping sum of bytes 3–63. HW.
 pub fn checksum(packet: &[u8; PACKET_LEN]) -> u16 {
     packet[3..]
@@ -149,6 +154,41 @@ impl Request {
             .collect()
     }
 
+    /// EXPERIMENTAL. Reads up to 18 slots anywhere in a profile's whole
+    /// `0x200`-byte colour region, including slots 118–169, which lie beyond
+    /// the 118 the LED map knows and whose meaning is OPEN (PROTOCOL.md §9
+    /// item 8). For the gated slot probe only.
+    pub fn experimental_read_region_colours(
+        profile: Profile,
+        first_slot: usize,
+        count: usize,
+    ) -> Result<Request> {
+        let offset = colour_run_offset_within(profile, first_slot, count, COLOUR_REGION_SLOTS)?;
+        Ok(Request::new(
+            Command::ReadColours,
+            (count * 3) as u8,
+            offset,
+        ))
+    }
+
+    /// EXPERIMENTAL. Writes up to 18 slots anywhere in a profile's colour
+    /// region (see [`experimental_read_region_colours`](Self::experimental_read_region_colours)).
+    /// Callers must read the slots first and write the original bytes back
+    /// (AV-016). Must be sent inside a transaction.
+    pub fn experimental_write_region_colours(
+        profile: Profile,
+        first_slot: usize,
+        colours: &[Rgb],
+    ) -> Result<Request> {
+        let offset =
+            colour_run_offset_within(profile, first_slot, colours.len(), COLOUR_REGION_SLOTS)?;
+        let mut request = Request::new(Command::WriteColours, (colours.len() * 3) as u8, offset);
+        for (slot, colour) in request.payload.chunks_exact_mut(3).zip(colours) {
+            slot.copy_from_slice(&[colour.r, colour.g, colour.b]);
+        }
+        Ok(request)
+    }
+
     pub fn command(&self) -> Command {
         self.command
     }
@@ -182,6 +222,17 @@ impl Request {
 
 /// Validates a run of LED colours and returns the address of its first LED.
 fn colour_run_offset(profile: Profile, first_led: usize, count: usize) -> Result<u16> {
+    colour_run_offset_within(profile, first_led, count, COLOUR_SLOTS)
+}
+
+/// Validates a run of `count` slots starting at `first`, all below `slots`,
+/// and returns the address of the first.
+fn colour_run_offset_within(
+    profile: Profile,
+    first: usize,
+    count: usize,
+    slots: usize,
+) -> Result<u16> {
     if count == 0 {
         return Err(Error::NoColours);
     }
@@ -191,11 +242,14 @@ fn colour_run_offset(profile: Profile, first_led: usize, count: usize) -> Result
             max: MAX_COLOURS_PER_PACKET,
         });
     }
-    let last = first_led
+    let last = first
         .checked_add(count - 1)
         .ok_or(Error::LedOutOfRange { led: usize::MAX })?;
-    colour_address(profile, last)?;
-    colour_address(profile, first_led)
+    if last >= slots {
+        return Err(Error::LedOutOfRange { led: last });
+    }
+    // last < slots <= COLOUR_REGION_SLOTS, so the offset fits in the profile's region.
+    Ok(u16::from(profile.index()) * crate::COLOUR_STRIDE + first as u16 * 3)
 }
 
 /// A vendor reply from the keyboard.
@@ -380,6 +434,27 @@ mod tests {
         );
         assert!(Request::write_colour_run(Profile::One, 100, &[Rgb::default(); 19]).is_err());
         assert!(Request::write_colour_run(Profile::One, 0, &[]).is_err());
+    }
+
+    #[test]
+    fn experimental_region_reaches_slot_169_and_no_further() {
+        let request =
+            Request::experimental_write_region_colours(Profile::One, 169, &[Rgb::new(1, 2, 3)])
+                .unwrap();
+        assert_eq!(request.offset(), 507);
+        assert_eq!(request.encode()[3], Command::WriteColours.byte());
+        let request = Request::experimental_read_region_colours(Profile::Two, 118, 18).unwrap();
+        assert_eq!(request.offset(), 0x200 + 354);
+        assert_eq!(
+            Request::experimental_write_region_colours(Profile::One, 170, &[Rgb::default()]),
+            Err(Error::LedOutOfRange { led: 170 })
+        );
+        assert_eq!(
+            Request::experimental_read_region_colours(Profile::One, 160, 11),
+            Err(Error::LedOutOfRange { led: 170 })
+        );
+        // The normal constructors still stop at 117.
+        assert!(Request::write_colours(Profile::One, 118, &[Rgb::default()]).is_err());
     }
 
     #[test]

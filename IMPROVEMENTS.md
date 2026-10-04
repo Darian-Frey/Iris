@@ -44,6 +44,16 @@ Effort vocabulary: trivial | small | medium | large.
 **Trade-offs.** Another tool to maintain; strict bidirectionality creates noise for weak relationships, tempting people to omit useful one-way pointers. Could instead be shared across all of the author's repositories rather than living here.
 **Notes.** Until it exists, CLAUDE.md states that cross-references may be stale.
 
+### IMP-005: Represent keys that have no custom-colour slot
+**Status:** suggested
+**Found:** 2026-10-04 (slot walks for the ISO `#` key)
+**Location:** data/phantom_iso_uk_leds.toml, crates/iris-proto/src/leds.rs
+**Effort:** small
+**Description.** The ISO `#` key has a working LED (it lights in the built-in effects) but no slot in 0–169 colours it in custom mode. The LED map still maps `Hash` to slot 64, which lights nothing, so `irisctl set-key Hash …` writes a colour nobody sees and reports success.
+**Proposal.** Keep `Hash` in the key vocabulary (profiles may name it) but give the map a way to say "no custom slot", for example a separate `[no_slot]` list. `LedMap::index` would then return no slot for it, writes naming it would be refused with an explanation, and the GUI would draw it as not customisable.
+**Trade-offs.** Changes the LED map file format and `LedMap` API; if vendor captures later reveal a slot, the entry moves back. Leaving it as is costs one useless 3-byte write when someone colours `#`.
+**Notes.** Related: AV-006, F-003, F-013, PROTOCOL.md §8 and §9 item 8.
+
 ## Applied
 
 ### IMP-004: Keep raw probe captures as test fixtures

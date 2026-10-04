@@ -5,7 +5,9 @@ use std::io::{BufRead, Write};
 
 use anyhow::{Result, bail};
 use iris_device::{Keyboard, Transport, WriteAccess};
-use iris_proto::{COLOUR_SLOTS, LedMap, MAX_COLOUR_PAYLOAD, Mode, Profile, Rgb, Setting};
+use iris_proto::{
+    COLOUR_REGION_SLOTS, COLOUR_SLOTS, LedMap, MAX_COLOUR_PAYLOAD, Mode, Profile, Rgb, Setting,
+};
 
 use crate::names::{describe, format_colour, mode_name, profile_number};
 
@@ -169,14 +171,7 @@ pub fn walk<T: Transport>(
     if let Some(&led) = leds.iter().find(|&&led| led >= COLOUR_SLOTS) {
         bail!("LED {led} is outside colour space (0-{})", COLOUR_SLOTS - 1);
     }
-    check_writable(w.keyboard)?;
-    let active = w.keyboard.device().capabilities().active_profile();
-    if active != Some(profile) {
-        bail!(
-            "profile {number} is not the active profile ({active:?}); switch to it with \
-             the keyboard's Fn keys first (Iris cannot switch profiles yet, F-005)"
-        );
-    }
+    walk_preflight(w.keyboard, profile)?;
     (w.before_write)(w.keyboard)?;
 
     let original_mode = w.keyboard.config(profile).mode_id();
@@ -210,6 +205,69 @@ pub fn walk<T: Transport>(
     Ok(steps)
 }
 
+/// Checks shared by both walks: writes allowed, and the profile is active
+/// so the user can see it.
+fn walk_preflight<T: Transport>(keyboard: &Keyboard<T>, profile: Profile) -> Result<()> {
+    check_writable(keyboard)?;
+    let active = keyboard.device().capabilities().active_profile();
+    if active != Some(profile) {
+        bail!(
+            "profile {} is not the active profile ({active:?}); switch to it with \
+             the keyboard's Fn keys first (Iris cannot switch profiles yet, F-005)",
+            profile_number(profile)
+        );
+    }
+    Ok(())
+}
+
+/// Switches the profile to custom mode and blanks slots 0-117, so only the
+/// walked slot lights.
+fn darken<T: Transport>(keyboard: &mut Keyboard<T>, profile: Profile) -> Result<()> {
+    keyboard.apply_settings(profile, &[Setting::Mode(Mode::Custom)])?;
+    let black: Vec<(usize, Rgb)> = (0..COLOUR_SLOTS).map(|led| (led, Rgb::default())).collect();
+    keyboard.apply_colours(profile, &black)?;
+    Ok(())
+}
+
+/// Prompts for one step. `None` means stop (the user typed `quit`, or input
+/// ended).
+fn ask(
+    out: &mut dyn Write,
+    input: &mut dyn BufRead,
+    step: &WalkStep,
+    position: usize,
+    total: usize,
+) -> Result<Option<Seen>> {
+    let expected = step.expected.as_deref().unwrap_or("no key in the LED map");
+    write!(
+        out,
+        "[{position}/{total}] LED {} lit (map says: {expected}). Enter = that key, \
+         none = nothing lit, quit = stop, or type the key you see: ",
+        step.led
+    )?;
+    out.flush()?;
+    let mut line = String::new();
+    if input.read_line(&mut line)? == 0 {
+        return Ok(None);
+    }
+    // Control words are whole words, because single letters such as `n` and
+    // `q` are also key legends.
+    Ok(Some(match line.trim() {
+        "" => Seen::AsExpected,
+        typed if typed.eq_ignore_ascii_case("none") => Seen::Nothing,
+        typed if typed.eq_ignore_ascii_case("quit") => return Ok(None),
+        typed
+            if step
+                .expected
+                .as_deref()
+                .is_some_and(|name| name.eq_ignore_ascii_case(typed)) =>
+        {
+            Seen::AsExpected
+        }
+        typed => Seen::Other(typed.to_string()),
+    }))
+}
+
 fn walk_steps<T: Transport>(
     w: &mut Writer<'_, T>,
     profile: Profile,
@@ -217,11 +275,7 @@ fn walk_steps<T: Transport>(
     input: &mut dyn BufRead,
     steps: &mut [WalkStep],
 ) -> Result<()> {
-    w.keyboard
-        .apply_settings(profile, &[Setting::Mode(Mode::Custom)])?;
-    let black: Vec<(usize, Rgb)> = (0..COLOUR_SLOTS).map(|led| (led, Rgb::default())).collect();
-    w.keyboard.apply_colours(profile, &black)?;
-
+    darken(w.keyboard, profile)?;
     let total = steps.len();
     let mut previous = None;
     for (i, step) in steps.iter_mut().enumerate() {
@@ -231,36 +285,156 @@ fn walk_steps<T: Transport>(
         }
         w.keyboard.apply_colours(profile, &changes)?;
         previous = Some(step.led);
+        match ask(w.out, input, step, i + 1, total)? {
+            Some(seen) => step.seen = seen,
+            None => break,
+        }
+    }
+    Ok(())
+}
 
-        let expected = step.expected.as_deref().unwrap_or("no key in the LED map");
+/// EXPERIMENTAL (PROTOCOL.md §9 item 8). Walks colour slots 118-169, which
+/// lie beyond the LED map and whose meaning is OPEN, looking for the ISO `#`
+/// key. The slots are read first; if any hold data, nothing is written
+/// unless the user types `yes`. Each slot is lit, then its original bytes
+/// are written straight back, and at the end the whole region is read back
+/// and must match what was there before (AV-016). Slots 0-117 and the mode
+/// are restored as in [`walk`].
+pub fn walk_beyond_map<T: Transport>(
+    w: &mut Writer<'_, T>,
+    profile: Profile,
+    colour: Rgb,
+    input: &mut dyn BufRead,
+) -> Result<Vec<WalkStep>> {
+    let number = profile_number(profile);
+    if w.dry_run {
+        bail!("walk writes on every step; it has no dry run");
+    }
+    walk_preflight(w.keyboard, profile)?;
+    let count = COLOUR_REGION_SLOTS - COLOUR_SLOTS;
+    let original_region =
+        w.keyboard
+            .device_mut()
+            .experimental_read_region_colours(profile, COLOUR_SLOTS, count)?;
+    let hex: Vec<String> = original_region.iter().map(|&c| format_colour(c)).collect();
+    writeln!(
+        w.out,
+        "Profile {number} slots {COLOUR_SLOTS}-{} as read: {}",
+        COLOUR_REGION_SLOTS - 1,
+        hex.join(" ")
+    )?;
+    if original_region.iter().any(|&c| c != Rgb::default()) {
         write!(
             w.out,
-            "[{}/{total}] LED {} lit (map says: {expected}). Enter = that key, \
-             none = nothing lit, quit = stop, or type the key you see: ",
-            i + 1,
-            step.led
+            "Some of these slots hold data of unknown meaning. Each will be overwritten \
+             briefly and its original bytes written back. Type yes to continue: "
         )?;
         w.out.flush()?;
         let mut line = String::new();
-        if input.read_line(&mut line)? == 0 {
-            break;
+        input.read_line(&mut line)?;
+        if line.trim() != "yes" {
+            bail!("stopped before writing anything");
         }
-        step.seen = match line.trim() {
-            // Control words are whole words, because single letters such as
-            // `n` and `q` are also key legends.
-            "" => Seen::AsExpected,
-            typed if typed.eq_ignore_ascii_case("none") => Seen::Nothing,
-            typed if typed.eq_ignore_ascii_case("quit") => break,
-            typed
-                if step
-                    .expected
-                    .as_deref()
-                    .is_some_and(|name| name.eq_ignore_ascii_case(typed)) =>
-            {
-                Seen::AsExpected
-            }
-            typed => Seen::Other(typed.to_string()),
-        };
+    }
+    (w.before_write)(w.keyboard)?;
+
+    let original_mode = w.keyboard.config(profile).mode_id();
+    let original_colours: Vec<(usize, Rgb)> = w
+        .keyboard
+        .colours(profile)
+        .iter()
+        .copied()
+        .enumerate()
+        .collect();
+    let mut steps: Vec<WalkStep> = (COLOUR_SLOTS..COLOUR_REGION_SLOTS)
+        .map(|led| WalkStep {
+            led,
+            expected: None,
+            seen: Seen::NotTried,
+        })
+        .collect();
+    let walked = beyond_steps(w, profile, colour, input, &original_region, &mut steps);
+
+    writeln!(
+        w.out,
+        "Restoring profile {number}'s slots, colours and mode..."
+    )?;
+    let region_restored = restore_region(w.keyboard, profile, &original_region);
+    let restored = restore(w.keyboard, profile, original_mode, &original_colours);
+    walked?;
+    region_restored?;
+    restored?;
+    writeln!(
+        w.out,
+        "Restored; slots {COLOUR_SLOTS}-{} read back identical to before. {} write \
+         packet(s) sent this session.",
+        COLOUR_REGION_SLOTS - 1,
+        w.keyboard.device().write_packets()
+    )?;
+    Ok(steps)
+}
+
+fn beyond_steps<T: Transport>(
+    w: &mut Writer<'_, T>,
+    profile: Profile,
+    colour: Rgb,
+    input: &mut dyn BufRead,
+    original: &[Rgb],
+    steps: &mut [WalkStep],
+) -> Result<()> {
+    darken(w.keyboard, profile)?;
+    let total = steps.len();
+    for (i, step) in steps.iter_mut().enumerate() {
+        write_region(w.keyboard, profile, step.led, &[colour])?;
+        let answer = ask(w.out, input, step, i + 1, total);
+        write_region(
+            w.keyboard,
+            profile,
+            step.led,
+            &[original[step.led - COLOUR_SLOTS]],
+        )?;
+        match answer? {
+            Some(seen) => step.seen = seen,
+            None => break,
+        }
+    }
+    Ok(())
+}
+
+fn write_region<T: Transport>(
+    keyboard: &mut Keyboard<T>,
+    profile: Profile,
+    first_slot: usize,
+    colours: &[Rgb],
+) -> Result<()> {
+    let mut transaction = keyboard.device_mut().transaction()?;
+    transaction.experimental_write_region_colours(profile, first_slot, colours)?;
+    transaction.commit()?;
+    Ok(())
+}
+
+/// Makes slots 118-169 hold exactly `original` again, verified by read-back.
+fn restore_region<T: Transport>(
+    keyboard: &mut Keyboard<T>,
+    profile: Profile,
+    original: &[Rgb],
+) -> Result<()> {
+    let read = |keyboard: &mut Keyboard<T>| {
+        keyboard.device_mut().experimental_read_region_colours(
+            profile,
+            COLOUR_SLOTS,
+            original.len(),
+        )
+    };
+    if read(keyboard)? != original {
+        write_region(keyboard, profile, COLOUR_SLOTS, original)?;
+        if read(keyboard)? != original {
+            bail!(
+                "slots {COLOUR_SLOTS}-{} could not be restored; their original bytes are \
+                 printed above",
+                COLOUR_REGION_SLOTS - 1
+            );
+        }
     }
     Ok(())
 }
@@ -511,6 +685,72 @@ mod tests {
         assert_eq!(steps[0].seen, Seen::AsExpected);
         assert_eq!(steps[1].seen, Seen::AsExpected);
         assert_eq!(steps[2].seen, Seen::Nothing);
+    }
+
+    fn region(kb: &mut Keyboard<SimulatedKeyboard>) -> Vec<Rgb> {
+        kb.device_mut()
+            .experimental_read_region_colours(Profile::One, 118, 52)
+            .unwrap()
+    }
+
+    #[test]
+    fn beyond_map_walk_restores_every_slot() {
+        let mut kb = keyboard(REFERENCE_BCD_DEVICE);
+        let original = kb.colours(Profile::One).to_vec();
+        let mut input = "none\nnone\n#\nquit\n".as_bytes();
+        let (result, out, hooks) = run(&mut kb, false, |w| {
+            walk_beyond_map(w, Profile::One, Rgb::new(255, 255, 255), &mut input)
+        });
+        let steps = result.unwrap();
+        assert_eq!(hooks, 1);
+        assert_eq!(steps[0].led, 118);
+        assert_eq!(steps[2].seen, Seen::Other("#".into()));
+        assert_eq!(steps[3].seen, Seen::NotTried);
+        assert!(out.contains("read back identical"));
+        assert_eq!(region(&mut kb), vec![Rgb::default(); 52]);
+        assert_eq!(kb.colours(Profile::One), &original[..]);
+        assert_eq!(kb.config(Profile::One).mode(), Some(Mode::SpectrumCycle));
+        assert!(kb.device().transport().violations().is_empty());
+    }
+
+    fn occupy_region(kb: &mut Keyboard<SimulatedKeyboard>) -> Vec<Rgb> {
+        let mut transaction = kb.device_mut().transaction().unwrap();
+        transaction
+            .experimental_write_region_colours(Profile::One, 130, &[Rgb::new(0xde, 0xad, 0x01)])
+            .unwrap();
+        transaction.commit().unwrap();
+        region(kb)
+    }
+
+    #[test]
+    fn occupied_region_needs_yes_and_writes_nothing_without_it() {
+        let mut kb = keyboard(REFERENCE_BCD_DEVICE);
+        let before_region = occupy_region(&mut kb);
+        let writes_before = kb.device().write_packets();
+        let mut input = "no\n".as_bytes();
+        let (result, out, hooks) = run(&mut kb, false, |w| {
+            walk_beyond_map(w, Profile::One, Rgb::new(255, 255, 255), &mut input)
+        });
+        assert!(result.is_err());
+        assert!(out.contains("dead01"));
+        assert_eq!(hooks, 0);
+        assert_eq!(kb.device().write_packets(), writes_before);
+        assert_eq!(region(&mut kb), before_region);
+    }
+
+    #[test]
+    fn occupied_region_is_restored_exactly_after_yes() {
+        let mut kb = keyboard(REFERENCE_BCD_DEVICE);
+        let before_region = occupy_region(&mut kb);
+        let answers = format!("yes\n{}", "none\n".repeat(52));
+        let mut input = answers.as_bytes();
+        let (result, _, _) = run(&mut kb, false, |w| {
+            walk_beyond_map(w, Profile::One, Rgb::new(255, 255, 255), &mut input)
+        });
+        let steps = result.unwrap();
+        assert!(steps.iter().all(|s| s.seen == Seen::Nothing));
+        assert_eq!(region(&mut kb), before_region);
+        assert!(kb.device().transport().violations().is_empty());
     }
 
     #[test]

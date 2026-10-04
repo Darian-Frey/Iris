@@ -115,6 +115,11 @@ enum Command {
         /// Walk every colour slot the LED map does not assign to a key.
         #[arg(long, conflicts_with = "targets")]
         unmapped: bool,
+        /// EXPERIMENTAL: walk colour slots 118-169, beyond the LED map, whose
+        /// meaning is unknown (PROTOCOL.md §9 item 8). Reads them first and
+        /// writes every original byte back.
+        #[arg(long, conflicts_with_all = ["targets", "all", "unmapped"])]
+        beyond_map: bool,
         /// Colour to light each LED with.
         #[arg(long, default_value = "ffffff")]
         colour: String,
@@ -287,8 +292,24 @@ fn run(cli: Cli) -> Result<()> {
             targets,
             all,
             unmapped,
+            beyond_map,
             colour,
         } => {
+            if beyond_map {
+                let colour = parse_colour(&colour)?;
+                let mut keyboard = open()?;
+                let mut hook = save_snapshot;
+                let mut stdin = io::stdin().lock();
+                let mut writer = Writer {
+                    keyboard: &mut keyboard,
+                    out: &mut stdout,
+                    dry_run: false,
+                    before_write: &mut hook,
+                };
+                let steps =
+                    commands::walk_beyond_map(&mut writer, profile(number)?, colour, &mut stdin)?;
+                return commands::report_walk(&steps, &mut stdout);
+            }
             let leds: Vec<usize> = if all {
                 map.iter().map(|(led, _)| led).collect()
             } else if unmapped {
@@ -297,8 +318,8 @@ fn run(cli: Cli) -> Result<()> {
                     .collect()
             } else if targets.is_empty() {
                 bail!(
-                    "name keys or LEDs to walk (for example `Hash #105`), or pass --all or \
-                     --unmapped"
+                    "name keys or LEDs to walk (for example `Hash #105`), or pass --all, \
+                     --unmapped or --beyond-map"
                 );
             } else {
                 targets

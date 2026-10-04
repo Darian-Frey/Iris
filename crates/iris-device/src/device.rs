@@ -149,6 +149,32 @@ impl<T: Transport> Device<T> {
         Ok(colours)
     }
 
+    /// EXPERIMENTAL. Reads `count` slots of a profile's whole colour region
+    /// from `first_slot`, including slots 118–169 beyond the LED map, whose
+    /// meaning is OPEN (PROTOCOL.md §9 item 8). For the gated slot probe only.
+    pub fn experimental_read_region_colours(
+        &mut self,
+        profile: Profile,
+        first_slot: usize,
+        count: usize,
+    ) -> Result<Vec<Rgb>, DeviceError> {
+        let mut colours = Vec::with_capacity(count);
+        let mut slot = first_slot;
+        while colours.len() < count {
+            let chunk = (count - colours.len()).min(18);
+            let request = Request::experimental_read_region_colours(profile, slot, chunk)?;
+            let reply = self.link.exchange(&request)?;
+            colours.extend(
+                reply
+                    .payload()
+                    .chunks_exact(3)
+                    .map(|rgb| Rgb::new(rgb[0], rgb[1], rgb[2])),
+            );
+            slot += chunk;
+        }
+        Ok(colours)
+    }
+
     /// Opens a write transaction. Refused unless the identity check passed.
     ///
     /// Once the begin packet has been sent, the returned guard sends the end
@@ -271,6 +297,24 @@ impl<T: Transport> Transaction<'_, T> {
         colours: &[Rgb],
     ) -> Result<(), DeviceError> {
         for request in Request::write_colour_run(profile, first_led, colours)? {
+            self.link.exchange(&request)?;
+        }
+        Ok(())
+    }
+
+    /// EXPERIMENTAL. Writes slots anywhere in a profile's colour region,
+    /// including slots 118–169 beyond the LED map (PROTOCOL.md §9 item 8).
+    /// The caller must have read them first and must write the originals
+    /// back (AV-016).
+    pub fn experimental_write_region_colours(
+        &mut self,
+        profile: Profile,
+        first_slot: usize,
+        colours: &[Rgb],
+    ) -> Result<(), DeviceError> {
+        for (i, chunk) in colours.chunks(18).enumerate() {
+            let request =
+                Request::experimental_write_region_colours(profile, first_slot + i * 18, chunk)?;
             self.link.exchange(&request)?;
         }
         Ok(())
@@ -468,6 +512,32 @@ mod tests {
         }));
         assert!(result.is_err());
         assert!(!device.transport().in_transaction());
+    }
+
+    #[test]
+    fn experimental_region_round_trips_beyond_the_map() {
+        let mut device = connect();
+        assert_eq!(
+            device
+                .experimental_read_region_colours(Profile::One, 118, 52)
+                .unwrap(),
+            vec![Rgb::default(); 52]
+        );
+        let mut transaction = device.transaction().unwrap();
+        transaction
+            .experimental_write_region_colours(Profile::One, 150, &[Rgb::new(9, 8, 7)])
+            .unwrap();
+        transaction.commit().unwrap();
+        let region = device
+            .experimental_read_region_colours(Profile::One, 118, 52)
+            .unwrap();
+        assert_eq!(region[150 - 118], Rgb::new(9, 8, 7));
+        assert!(device.transport().violations().is_empty());
+        // Profile 2's slot 0 is untouched.
+        assert_eq!(
+            device.transport().colour(Profile::Two, 0),
+            Some(Rgb::default())
+        );
     }
 
     #[test]
