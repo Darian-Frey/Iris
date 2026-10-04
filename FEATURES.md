@@ -34,7 +34,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 - Sets any of the modes the keyboard itself advertises in its capability block (19 on the reference board)
 - Sets brightness, speed, direction, random-colour flag and mode colour where the mode supports them
 - The valid numeric ranges for brightness and speed are established on hardware and recorded in PROTOCOL.md before release (they differ between the two prior implementations)
-**Status:** Not started
+**Status:** In progress (2026-10-04: `irisctl set-mode` sets mode, brightness, speed, mode colour and random flag through the diffing layer; tested against the simulator, not yet written to hardware. Direction is left out until its range is known; brightness and speed are capped at the larger of the two prior implementations' maxima, 9 and 5, pending PROTOCOL.md §9 item 3.)
 **Notes:** PROTOCOL.md §Parameters, §Modes.
 
 ### F-003 Per-key custom colour maps
@@ -43,7 +43,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 - Uploads a full 88-key colour map in bulk packets (≤ 54 bytes of colour data each)
 - Updates a single key with one data packet inside one transaction
 - Every key in `data/phantom_iso_uk_leds.toml` lights the correct physical key, including the two ISO keys (AV-006)
-**Status:** Not started
+**Status:** In progress (2026-10-04: bulk and single-key writes via `Keyboard::apply_colours` and `irisctl set-key` / `set-map`; tested against the simulator, not yet written to hardware.)
 **Notes:** Single-key colour via the V1 path confirmed on hardware with OpenRGB, 2026-09-20.
 
 ### F-004 State read-back
@@ -51,7 +51,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 **Acceptance:**
 - Reads active profile, all three per-profile configuration blocks and the custom colour map
 - GUI and CLI show the keyboard's actual state on start, not an assumed one
-**Status:** Not started
+**Status:** In progress (2026-10-04: `Keyboard::load` reads all three configuration blocks and colour maps; `irisctl info` and `get` show them; confirmed on the reference keyboard.)
 **Notes:** Commands `0x03`, `0x05`, `0x10` all answered correctly on hardware, 2026-09-20.
 
 ### F-005 Onboard profile slot selection
@@ -119,14 +119,14 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 - Applying an identical profile sends zero write packets
 - A global rate limit caps write transactions; excess requests coalesce to the latest
 - A persistent counter records total write transactions and is visible in GUI and CLI
-**Status:** Not started
+**Status:** In progress (2026-10-04, device side: `iris_device::Keyboard` keeps a shadow copy, writes only differing settings and LED runs, sends no packets at all for an unchanged request, and confirms every write by read-back; in-session write counters on `Device`. Rate limiter and persistent counter remain for `irisd`.)
 **Notes:** AV-004. This is a Must because the flash-or-RAM question is open.
 
 ### F-029 Lighting state snapshot and restore
 **Priority:** Should
 **Acceptance:**
 - Saves the three configuration blocks and custom maps to a file before Iris first writes to a device, and can restore them
-**Status:** Not started
+**Status:** In progress (2026-10-04: `irisctl` saves `first-before-write.txt` once and `last-before-write.txt` on every write command under `$XDG_STATE_HOME/iris/snapshots/`. No restore yet.)
 
 ### Graphical interface
 
@@ -209,7 +209,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 **Acceptance:**
 - Everything the D-Bus API offers, scriptable, with `--json` output
 - Runnable from the host as `flatpak run --command=irisctl io.github.darian_frey.Iris …`
-**Status:** Not started
+**Status:** In progress (2026-10-04: Phase 1 direct-mode skeleton with `info`, `get`, `keys`, `modes`, `set-mode`, `set-key`, `set-map`, `walk`, and `--dry-run` on writes. No `--json` and no D-Bus yet.)
 
 ### F-024 Flatpak packaging
 **Priority:** Must

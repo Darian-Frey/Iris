@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/iris-proto", "crates/iris-device"]
+members = ["crates/iris-proto", "crates/iris-device", "crates/irisctl"]
 
 [workspace.package]
 version = "0.0.0"

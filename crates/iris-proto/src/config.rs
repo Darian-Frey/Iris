@@ -124,6 +124,14 @@ impl ConfigBlock {
         self.byte(Parameter::SurmountColour)
     }
 
+    /// Whether this block already holds `setting`, so writing it would
+    /// change nothing (F-012).
+    pub fn holds(&self, setting: Setting) -> bool {
+        let (bytes, len) = setting.encode();
+        let at = usize::from(setting.parameter().offset());
+        self.raw[at..at + len] == bytes[..len]
+    }
+
     /// The block exactly as read.
     pub fn raw(&self) -> &[u8; BLOCK_LEN] {
         &self.raw
@@ -189,6 +197,18 @@ mod tests {
         assert_eq!((block.mode(), block.mode_id()), (None, 0x13));
         assert_eq!(block.random_colour(), None);
         assert_eq!(block.polling_rate(), None);
+    }
+
+    #[test]
+    fn holds_compares_only_the_parameter_bytes() {
+        let block = ConfigBlock::parse(&captured_payload(Profile::One)).unwrap();
+        assert!(block.holds(Setting::Mode(Mode::SpectrumCycle)));
+        assert!(block.holds(Setting::Brightness(4)));
+        assert!(block.holds(Setting::RandomColour(false)));
+        assert!(block.holds(Setting::ModeColour(Rgb::new(0x49, 0x00, 0xff))));
+        assert!(!block.holds(Setting::ModeColour(Rgb::new(0x49, 0x00, 0xfe))));
+        assert!(!block.holds(Setting::Speed(1)));
+        assert!(!block.holds(Setting::Mode(Mode::Custom)));
     }
 
     #[test]

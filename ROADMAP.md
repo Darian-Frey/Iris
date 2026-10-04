@@ -27,7 +27,7 @@ Phases are append-only. Mark complete with an ISO date; do not delete.
 - [x] Unit tests including the allow-list test (AV-001) and interleaved-report test (AV-008) (2026-10-03; AV-008 at packet level, device-level test follows with `iris-device`)
 - [x] In-memory simulated keyboard implementing V1 (ARCHITECTURE.md §Testing seam) (2026-10-04: `iris_device::sim`, behind the `sim` feature)
 - [x] `iris-device`: sysfs discovery, identity check (AV-007), exchange with echo matching, transaction guard (AV-005), hotplug (2026-10-04; hotplug here means disconnection detection plus repeatable discovery, with event-driven watching moved to `irisd`; read path run against the real keyboard by the author 2026-10-04, identity `Verified`, zero writes)
-- [ ] Temporary direct-mode `irisctl` (talks to the device itself, no daemon yet): `info`, `get`, `set-mode`, `set-key`, `set-map`, `walk` (lights one LED at a time for AV-006)
+- [x] Temporary direct-mode `irisctl` (talks to the device itself, no daemon yet): `info`, `get`, `set-mode`, `set-key`, `set-map`, `walk` (lights one LED at a time for AV-006) (2026-10-04; read-only commands and dry runs confirmed on hardware, writes not yet run)
 - [ ] Skeleton Flatpak manifest that builds the CLI offline and runs it against the real keyboard; BUILD.md corrected from that experience
 - [ ] Hardware experiments PROTOCOL.md §9 items 1, 2, 3 run and recorded; carried Phase 0 checks closed
 **Acceptance:** From inside the sandbox, without root: read full device state; set a mode; upload a full 88-key map with every key correct; setting the same map twice sends zero write packets the second time; typing is never interrupted; apply latency and flash-vs-RAM are recorded in PROTOCOL.md.

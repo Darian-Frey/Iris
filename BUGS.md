@@ -14,6 +14,15 @@ None.
 
 ## Fixed
 
+### BUG-002: `irisctl walk` read the legends `n` and `q` as commands
+**Status:** fixed (2026-10-04, same session)
+**Found:** 2026-10-04 (author's `walk --all` on the reference keyboard)
+**Location:** [crates/irisctl/src/commands.rs](crates/irisctl/src/commands.rs) `walk_steps`
+**Severity:** low (wrong walk records; nothing wrong was sent to the keyboard)
+**Description.** The walk prompt used `n` for "nothing lit" and `q` for "stop". Both are also key legends. At LED 75 (N) the author typed `n` and the step was recorded as "nothing lit"; at LED 36 (Q) typing `q` would have stopped the walk, so the author typed "Q key" instead.
+**Reproduction.** `irisctl walk --profile 1 N`, answer `n`.
+**Notes.** Fix: the control answers are now the words `none` and `quit`; typing the expected key's name or legend in any case counts as a match. Test `single_letter_legends_are_answers_not_commands`. The LED 75 result from that walk needs the author's confirmation.
+
 ### BUG-001: Reconnaissance probe sent a V1 keymap-header write, believing it to be a V2 read
 **Status:** fixed (2026-09-20, same session)
 **Found:** 2026-09-20 (while decoding the probe's output against dokutan's keymap packets)

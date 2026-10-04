@@ -84,6 +84,7 @@ pub struct SimulatedKeyboard {
     outbox: VecDeque<Vec<u8>>,
     foreign: Vec<Vec<u8>>,
     replies_to_drop: usize,
+    discard_writes: bool,
     plugged_in: bool,
     received: Vec<[u8; PACKET_LEN]>,
     committed: usize,
@@ -115,6 +116,7 @@ impl SimulatedKeyboard {
             outbox: VecDeque::new(),
             foreign: Vec::new(),
             replies_to_drop: 0,
+            discard_writes: false,
             plugged_in: true,
             received: Vec::new(),
             committed: 0,
@@ -205,6 +207,12 @@ impl SimulatedKeyboard {
         self.replies_to_drop += count;
     }
 
+    /// Makes committed transactions apply nothing, as if the firmware
+    /// acknowledged writes without storing them. For read-back tests.
+    pub fn discard_writes(&mut self, discard: bool) {
+        self.discard_writes = discard;
+    }
+
     /// Simulates unplugging: every send and receive fails until
     /// [`plug_in`](Self::plug_in). Undelivered reports and any open
     /// transaction are lost.
@@ -278,6 +286,11 @@ impl SimulatedKeyboard {
             Command::End => {
                 match self.transaction.take() {
                     Some(writes) => {
+                        let writes = if self.discard_writes {
+                            Vec::new()
+                        } else {
+                            writes
+                        };
                         for write in writes {
                             self.apply(&write);
                         }

@@ -52,18 +52,20 @@ Maximum payload is 56 bytes (`0x38`). OpenRGB caps colour writes at 54 (`0x36`),
 
 | Cmd | Name | Direction | Status | Notes |
 |-----|------|-----------|--------|-------|
-| `0x01` | Begin transaction | write | SRC | Packet is `04 01 00 01` then zeros |
-| `0x02` | End transaction | write | SRC | Packet is `04 02 00 02` then zeros |
+| `0x01` | Begin transaction | write | HW | Packet is `04 01 00 01` then zeros |
+| `0x02` | End transaction | write | HW | Packet is `04 02 00 02` then zeros |
 | `0x03` | Read capability block | read | HW | Size `0x2C`, offset 0 |
 | `0x04` | Write capability block | write | SRC | Used by dokutan to change active profile. See §6 warning |
 | `0x05` | Read configuration | read | HW | Size ≤ `0x38`, offset into config space |
-| `0x06` | Set parameter | write | SRC (path validated via OpenRGB on HW) | Size = parameter length, offset = parameter address |
+| `0x06` | Set parameter | write | HW for the mode parameter (Iris write, read back); other parameters SRC | Size = parameter length, offset = parameter address |
 | `0x08` | Write keymap data | write | SRC | **Forbidden** (D-015) |
 | `0x0A` | Write keymap header | write | SRC | **Forbidden** (D-015). Payload begins `aa 55`. See BUG-001 |
 | `0x10` | Read custom colours | read | HW | Size ≤ `0x36`, offset into colour space |
-| `0x11` | Write custom colours | write | SRC (validated via OpenRGB on HW) | Size ≤ `0x36`, offset into colour space |
+| `0x11` | Write custom colours | write | HW | Size ≤ `0x36`, offset into colour space |
 
-Writes are wrapped: `0x01`, one or more data packets, `0x02`. Reads were answered on hardware without a wrapper. **HW** for reads; **SRC** for the write wrapper.
+Writes are wrapped: `0x01`, one or more data packets, `0x02`. Reads were answered on hardware without a wrapper. **HW** for reads and for the write wrapper.
+
+First writes from Iris, 2026-10-04 (`irisctl set-key` and `irisctl walk`, run by the author): begin/end-wrapped `0x11` writes and a `0x06` mode write to profile 1 were each read back with `0x10` / `0x05` and matched; the walk's colours were visible on the keyboard, and the original colours and mode were restored and confirmed. Reapplying an unchanged key colour sent nothing. On that evidence `0x01`, `0x02`, `0x11` and the `0x06` mode write were promoted from SRC to HW (author's decision, 2026-10-04).
 
 ### Command allow-list
 
@@ -101,7 +103,7 @@ Three profiles, stride `0x2A` (42 bytes). Address = `profile_index × 0x2A + par
 
 | Addr | Parameter | Size | Status |
 |------|-----------|------|--------|
-| `0x00` | Mode | 1 | HW (read) |
+| `0x00` | Mode | 1 | HW (read and write) |
 | `0x01` | Brightness | 1 | HW (read) |
 | `0x02` | Speed | 1 | HW (read) |
 | `0x03` | Direction | 1 | SRC |
@@ -149,7 +151,7 @@ dokutan changes the active profile by sending command `0x04` with a fixed 44-byt
 
 ## 7. Custom colour space (commands `0x10` / `0x11`)
 
-- Flat array, 3 bytes per LED in R, G, B order. Address = `profile_index × 0x200 + led_index × 3`. **SRC**; single-key write at the right address confirmed on HW via OpenRGB (LED 59 = J).
+- Flat array, 3 bytes per LED in R, G, B order. Address = `profile_index × 0x200 + led_index × 3`. **HW** for profile 1 (index 0): Iris wrote and read back single LEDs, runs and the whole map at `led × 3` on 2026-10-04. The `0x200` profile stride is still **SRC**; no write to profiles 2 or 3 has been made.
 - Bulk write: consecutive packets of up to 54 bytes. A full 118-slot map is 354 bytes, 7 packets. **SRC**
 - A single key is one 3-byte packet inside a begin/end pair. **SRC**
 - The reference board's custom map read back as all zeros (never set) on 2026-09-20. **HW**
@@ -160,7 +162,7 @@ dokutan changes the active profile by sending command `0x04` with a fixed 44-byt
 
 ## 8. LED index map
 
-Canonical data: `data/phantom_iso_uk_leds.toml`. Derived from dokutan's key-name → offset table (`offset ÷ 3`), numpad entries removed, leaving exactly 88 keys. **SRC**, with LED 59 = J confirmed. **HW**
+Canonical data: `data/phantom_iso_uk_leds.toml`. Derived from dokutan's key-name → offset table (`offset ÷ 3`), numpad entries removed, leaving exactly 88 keys. **HW** for 87 entries: on 2026-10-04 `irisctl walk --all` lit each one and the author saw the named key light (author's decision, 2026-10-04). Entry 64 (`Hash`) is wrong; see below.
 
 Grid of 17 slots per row:
 
@@ -170,9 +172,9 @@ Grid of 17 slots per row:
 | `` ` ``, 1–0, `-`, `=` | 18–30; Backspace 98 |
 | Tab, Q–P, `[`, `]` | 35–47 |
 | Caps Lock, A–L, `;`, `'` | 52–63 |
-| ISO `#` (beside Return) | 64: **OPEN**, expected from ANSI backslash position |
+| ISO `#` (beside Return) | Not 64: LED 64 lights no key, and no slot in 0–117 lights `#` in custom mode (**HW**, 2026-10-04). The key does light in the built-in effects (**HW**, author), so it has an LED; its custom-colour slot is unknown, possibly beyond 117. **OPEN** |
 | Left Shift, Z–M, `,`, `.`, `/`, Right Shift | 69–80; Return 81 |
-| ISO `\` (beside left Shift) | 105: **OPEN** |
+| ISO `\` (beside left Shift) | 105: **HW** (`irisctl walk`, 2026-10-04) (author's decision, 2026-10-04) |
 | Ctrl, Super, Alt, Space, AltGr, Fn, Menu, Ctrl | 86–93 |
 | Left, Down, Up, Right | 94–97 |
 | PrtSc, ScrLk, Pause | 106–108 |
@@ -180,7 +182,7 @@ Grid of 17 slots per row:
 
 ## 9. Open questions and the experiments that settle them
 
-1. **LEDs 64 and 105.** Light each in OpenRGB; record which key responds.
+1. **LEDs 64 and 105.** Light each in OpenRGB; record which key responds. Run 2026-10-04 with `irisctl walk` instead: 105 lit `\`, 64 lit nothing. Then `irisctl walk --unmapped` (2026-10-04): none of the 30 slots the map does not assign (0, 14–17, 31–34, 48–51, 65–68, 82–85, 99–104, 109, 116, 117) lit any key. **HW**. So `#` is either one of the 88 mapped indices (with the map naming the wrong key there), beyond slot 117, or unlit. Then `irisctl walk --all` (2026-10-04): every mapped LED except 64 lit the key the map names, by the author's report: 86 non-ISO keys plus 105 (`\`). LED 75 was recorded as "nothing lit" because of BUG-002; the author has since confirmed N lit. LED 64 again lit nothing. **HW** for these observations; the table above is tagged accordingly. The `#` key's custom-colour slot is still not found: it is not at any of slots 0–117, although the key lights in the built-in effects. Next: probe slots 118–169, which needs the 118-slot limit (SRC) raised in `iris-proto` and is a separate, author-approved step.
 2. **Apply latency and flash-vs-RAM.** Time a single-key transaction and a full-map transaction. Then: write a key colour, power-cycle the keyboard, read back with `0x10`. Persisting proves non-volatile storage.
 3. **Brightness and speed ranges.** Set each candidate value through `0x06`, read back with `0x05`, observe the keyboard.
 4. **`0x04` read-modify-write.** Read the block, write it back byte-identical, read again and compare. Only then change byte 10.

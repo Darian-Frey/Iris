@@ -26,6 +26,9 @@ pub enum DeviceError {
     Timeout,
     /// The device has gone; rediscover it (AV-014).
     Disconnected,
+    /// A write was acknowledged but reading back showed the keyboard does
+    /// not hold what was written.
+    ReadBackMismatch(String),
     /// A reply could not be interpreted.
     Protocol(iris_proto::Error),
     /// Any other I/O failure.
@@ -48,6 +51,9 @@ impl fmt::Display for DeviceError {
             DeviceError::WritesNotPermitted(why) => write!(f, "writes refused: {why}"),
             DeviceError::Timeout => write!(f, "no reply from the keyboard"),
             DeviceError::Disconnected => write!(f, "keyboard disconnected"),
+            DeviceError::ReadBackMismatch(what) => {
+                write!(f, "write not confirmed by read-back: {what}")
+            }
             DeviceError::Protocol(error) => write!(f, "protocol error: {error}"),
             DeviceError::Io(error) => write!(f, "I/O error: {error}"),
         }

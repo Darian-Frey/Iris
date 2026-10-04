@@ -14,6 +14,7 @@ mod device;
 mod discovery;
 mod error;
 mod hidraw;
+mod keyboard;
 mod transport;
 
 pub use device::{DEFAULT_TIMEOUT, Device, REFERENCE_BCD_DEVICE, Transaction, WriteAccess};
@@ -23,6 +24,7 @@ pub use discovery::{
 };
 pub use error::DeviceError;
 pub use hidraw::Hidraw;
+pub use keyboard::{Applied, Keyboard};
 pub use transport::{Transport, TransportError};
 
 #[cfg(any(test, feature = "sim"))]

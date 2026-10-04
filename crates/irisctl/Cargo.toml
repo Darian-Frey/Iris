@@ -1,0 +1,19 @@
+[package]
+name = "irisctl"
+description = "Command-line control of the Tecware Phantom RGB (Phase 1 direct mode)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+iris-proto = { path = "../iris-proto" }
+iris-device = { path = "../iris-device" }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
+
+[dev-dependencies]
+iris-device = { path = "../iris-device", features = ["sim"] }

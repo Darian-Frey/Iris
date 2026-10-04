@@ -32,7 +32,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-004 Flash wear from frequent writes
 **Severity:** Major
 **Description.** Colour and parameter writes are assumed to reach non-volatile memory with finite endurance. Focus-driven switching could issue thousands of writes a day.
-**Detection.** Not implemented (planned: daemon test that applying an identical profile yields zero write packets against the simulated device; rate-limiter test; persistent write counter surfaced in GUI/CLI for manual review).
+**Detection.** Partly implemented (2026-10-04): `iris_device::Keyboard` diffs against a shadow copy; tests `unchanged_settings_send_nothing`, `only_changed_settings_are_written_and_reapplying_is_free` and `same_map_twice_sends_zero_packets_the_second_time` assert zero packets for an unchanged request against the simulated device. Still planned: rate-limiter test; persistent write counter surfaced in GUI/CLI for manual review.
 **Related decisions.** D-001.
 **History.** Flash-vs-RAM is OPEN (PROTOCOL.md §9 item 2). If writes prove volatile, downgrade to Minor.
 
@@ -114,5 +114,5 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-006 Wrong LED index for a key
 **Severity:** Minor
 **Description.** The LED map is derived from an ANSI-named table for a sibling board. The two ISO-specific keys (LEDs 64 and 105) are unverified.
-**Detection.** Manual: light each LED in turn and tick it off against the physical key; record the result in PROTOCOL.md §8. A "walk the keyboard" test mode in `irisctl` is planned to make this repeatable.
-**History.** LED 59 = J confirmed on hardware 2026-09-20.
+**Detection.** Manual: light each LED in turn and tick it off against the physical key; record the result in PROTOCOL.md §8. `irisctl walk` (2026-10-04) makes this repeatable: it lights one LED at a time on the active profile, records what the user sees, and restores the original colours and mode afterwards; tested against the simulator, not yet run on hardware.
+**History.** LED 59 = J confirmed on hardware 2026-09-20. 2026-10-04, first `irisctl walk`: LED 105 lit the ISO `\` key; LED 64 lit nothing, so the map's `Hash` entry is wrong and the `#` key's index is unknown; LED 59 lit J again. `walk --unmapped` the same day: none of the 30 unassigned slots lights any key. `walk --all` the same day: every mapped LED except 64 lit its named key (LED 75 confirmed by the author after BUG-002), so 87 of 88 map entries are correct and tagged HW; `#` lights in the built-in effects but its custom-colour slot is not in 0–117.

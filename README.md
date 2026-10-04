@@ -1,7 +1,7 @@
 > **Status:** Active
 > **Provenance:** Shane Hartley (author, hardware testing); Claude (protocol research, source analysis of prior art, initial documentation 2026-09-20)
-> **Last reviewed:** 2026-09-20
-> **Why this status:** Reconnaissance complete (protocol identified and validated on hardware). No production code yet; Phase 1 (device core) is next.
+> **Last reviewed:** 2026-10-04
+> **Why this status:** Phase 1 (device core) in progress: protocol crate, device layer and a direct-mode CLI exist and read the keyboard correctly; writes from Iris have not yet been run on hardware.
 
 # Iris
 
@@ -11,7 +11,7 @@ Named for the Greek goddess of the rainbow, who was also the gods' messenger.
 
 ## Quick Start
 
-There is no installable build yet. What exists today is the reconnaissance tooling:
+There is no installable build yet. What exists today is the Phase 1 command-line tool, which talks to the keyboard directly:
 
 ```bash
 # 1. Host permission (once). A Flatpak cannot install udev rules.
@@ -19,9 +19,15 @@ sudo cp data/60-iris-keyboard.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 # replug the keyboard, then confirm: getfacl /dev/hidraw1
 
-# 2. Read-only probe (sends read commands only)
-python3 tools/phantom_probe.py /dev/hidraw1
+# 2. Read the keyboard's state (reads only)
+cargo run -p irisctl -- info
+cargo run -p irisctl -- get --profile 1
+
+# 3. Preview a change without sending it
+cargo run -p irisctl -- set-key --profile 1 J 00ff00 --dry-run
 ```
+
+The original read-only probe is still available: `python3 tools/phantom_probe.py /dev/hidraw1`.
 
 Intended install path once Phase 1 lands (see [BUILD.md](BUILD.md), unverified until first build):
 

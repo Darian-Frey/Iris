@@ -1,7 +1,7 @@
 # Tecware Phantom 88 (ISO-UK), EVision 320f:5064
 # LED index -> key. Colour data offset = index * 3 (R, G, B).
-# Derived from dokutan/rgb_keyboard offsets; LED 59 = J confirmed on hardware.
-# Numpad indices omitted (not present on TKL). "verify" = ISO key, check on the board.
+# Derived from dokutan/rgb_keyboard offsets. Every entry except 64 confirmed on
+# hardware with `irisctl walk`, 2026-10-04. Numpad indices omitted (not on TKL).
 
 [leds]
 1   = "Esc"
@@ -55,7 +55,7 @@
 61  = "L"
 62  = "Semicolon"
 63  = "Apostrophe"
-64  = "Hash"   # verify
+64  = "Hash"   # WRONG: LED 64 lights nothing (2026-10-04); the # key's slot is unknown
 69  = "Shift_l"
 70  = "Z"
 71  = "X"
@@ -82,7 +82,7 @@
 96  = "Up"
 97  = "Right"
 98  = "Backspace"
-105 = "Backslash_ISO"   # verify
+105 = "Backslash_ISO"   # confirmed 2026-10-04
 106 = "PrtSc"
 107 = "ScrLk"
 108 = "Pause"

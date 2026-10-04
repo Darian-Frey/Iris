@@ -118,6 +118,11 @@ impl<T: Transport> Device<T> {
         &self.link.transport
     }
 
+    /// The transport, for fault injection in tests.
+    pub fn transport_mut(&mut self) -> &mut T {
+        &mut self.link.transport
+    }
+
     /// Reads the capability block afresh.
     pub fn read_capabilities(&mut self) -> Result<Capabilities, DeviceError> {
         self.link.read_capabilities()
