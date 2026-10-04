@@ -1,0 +1,15 @@
+[package]
+name = "iris-device"
+description = "hidraw discovery and request/reply exchanges for the Tecware Phantom RGB"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+# The in-memory simulated keyboard. For tests only; never enable in a shipped build.
+sim = []
+
+[dependencies]
+iris-proto = { path = "../iris-proto" }

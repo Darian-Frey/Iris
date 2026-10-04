@@ -39,7 +39,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-005 Unterminated transaction
 **Severity:** Major
 **Description.** A begin (`0x01`) without its end (`0x02`), through a crash, timeout or unplug mid-write, may leave the firmware waiting or discard a partial update. Behaviour is unknown.
-**Detection.** Not implemented (planned: transaction guard type whose drop sends end; fault-injection tests on the simulated device; one deliberate hardware observation once the device core exists).
+**Detection.** Not implemented (planned: transaction guard type whose drop sends end; fault-injection tests on the simulated device; one deliberate hardware observation once the device core exists). The simulated keyboard exists (2026-10-04): it models an abandoned transaction as applying nothing, flags nested begins and stray ends, and can drop replies or unplug mid-transaction, so the guard's tests can be written against it.
 **Related decisions.** D-003.
 
 ### AV-016 Overwriting device-specific bytes with a canned block

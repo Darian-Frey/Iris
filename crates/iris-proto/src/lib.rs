@@ -13,6 +13,7 @@
 
 mod address;
 mod capability;
+pub mod capture;
 mod command;
 mod config;
 mod error;
