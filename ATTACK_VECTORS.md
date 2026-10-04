@@ -39,7 +39,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-005 Unterminated transaction
 **Severity:** Major
 **Description.** A begin (`0x01`) without its end (`0x02`), through a crash, timeout or unplug mid-write, may leave the firmware waiting or discard a partial update. Behaviour is unknown.
-**Detection.** Not implemented (planned: transaction guard type whose drop sends end; fault-injection tests on the simulated device; one deliberate hardware observation once the device core exists). The simulated keyboard exists (2026-10-04): it models an abandoned transaction as applying nothing, flags nested begins and stray ends, and can drop replies or unplug mid-transaction, so the guard's tests can be written against it.
+**Detection.** Implemented in software (2026-10-04). `iris_device::Transaction` is a guard: once the begin packet is sent, the end packet goes out on commit, error, early return or panic, including when the begin reply itself is lost. Tests against the simulated keyboard: `dropped_transaction_still_sends_end`, `failed_write_still_sends_end`, `lost_begin_reply_still_sends_end`, `panic_inside_a_transaction_still_sends_end`, `unplug_mid_transaction_is_reported`; each asserts the simulator records no violation. Still planned: one deliberate hardware observation of an unterminated transaction, run by the author.
 **Related decisions.** D-003.
 
 ### AV-016 Overwriting device-specific bytes with a canned block
@@ -54,24 +54,24 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-007 Firmware or hardware variant mismatch
 **Severity:** Major
 **Description.** The Phantom ships with at least two controllers (`0c45:652f`, `320f:5064`) and firmware revisions. Offsets verified on one may be wrong on another.
-**Detection.** Not implemented (planned: identity check of VID/PID, `bcdDevice` and `55 aa` magic before any write; unknown combinations are read-only until the user explicitly opts in).
+**Detection.** Partly implemented (2026-10-04). `Device::connect` reads the capability block before anything else and refuses a device without the V1 magic outright (`IdentityMismatch`). VID/PID and `bcdDevice` from sysfs must equal `320f:5064` and `0x0102`, or the device is read-only and `transaction()` returns `WritesNotPermitted`. Tests `reference_keyboard_is_verified`, `unknown_firmware_is_read_only`, `v2_magic_is_refused_outright`. Still planned: the explicit user opt-in for unknown combinations.
 **Related decisions.** D-005.
 
 ### AV-008 Reply desynchronisation
 **Severity:** Major
 **Description.** Key-press, media-key and mouse reports (IDs 1, 2, 3, 5) arrive on the same hidraw node as vendor replies. Taking the next read as "the reply" will misparse a keystroke as device state, and the real reply will then be misattributed to the following request.
-**Detection.** Partly implemented. `Reply::parse` rejects other report IDs as `ForeignReport` and `Reply::answers` requires bytes 1–6 to echo the request; tests `foreign_reports_are_rejected` and `interleaved_reports_leave_the_reply_intact` in `iris-proto` (2026-10-03). Still planned: the same test against the transport in `iris-device`. The probe script already filters by report ID.
+**Detection.** Partly implemented. `Reply::parse` rejects other report IDs as `ForeignReport` and `Reply::answers` requires bytes 1–6 to echo the request; tests `foreign_reports_are_rejected` and `interleaved_reports_leave_the_reply_intact` in `iris-proto` (2026-10-03). In `iris-device` (2026-10-04) every exchange waits for the reply that echoes its request, skipping other report IDs and stale vendor replies; test `key_presses_and_stale_replies_are_skipped`. The probe script already filters by report ID.
 **Related decisions.** D-003.
 
 ### AV-009 Concurrent access by another tool
 **Severity:** Minor
 **Description.** OpenRGB or a second `irisd` talking to the same node will interleave transactions and invalidate the shadow state.
-**Detection.** Not implemented (planned: advisory `flock` on the node; D-Bus name ownership prevents a second daemon; periodic read-back compares device state with shadow state and resynchronises).
+**Detection.** Partly implemented (2026-10-04): `Hidraw::open` takes a non-blocking exclusive `flock` and reports `Busy` if another process holds it. OpenRGB does not take the lock, so this only stops cooperating processes. Still planned: D-Bus name ownership prevents a second daemon; periodic read-back compares device state with shadow state and resynchronises.
 
 ### AV-010 Missing host permission
 **Severity:** Major
 **Description.** Without the udev rule the node is root-only and the Flatpak cannot fix that. A silent failure looks like "Iris does nothing".
-**Detection.** Not implemented (planned: distinct permission-denied error mapped to a dialog and CLI message containing the exact rule and commands).
+**Detection.** Partly implemented (2026-10-04): `Hidraw::open` maps the failure to a distinct `DeviceError::PermissionDenied`, and `iris_device::permission_help()` returns the exact rule (from `data/60-iris-keyboard.rules`) and commands. Still planned: the GUI dialog and CLI message that show it.
 **Related decisions.** D-009.
 **History.** Hit during reconnaissance: `/dev/hidraw*` were `crw------- root`.
 
@@ -100,7 +100,7 @@ No production code exists yet, so most detections are specified but not implemen
 ### AV-014 Stale state after suspend or replug
 **Severity:** Major
 **Description.** After resume or replug the hidraw node may be renumbered and the keyboard may have reverted to a stored profile. A daemon that trusts its old file descriptor and shadow state will write to nothing, or diff against fiction.
-**Detection.** Not implemented (planned: on `PrepareForSleep(false)` and on hotplug, re-run discovery, re-read device state, rebuild shadow state, then re-evaluate rules; simulated-device test for each).
+**Detection.** Partly implemented (2026-10-04): discovery reads sysfs afresh on every call and never assumes a node name; a `Device` that sees `ENODEV`, `POLLHUP` or an unplugged simulator reports `Disconnected` and fails fast from then on, so stale handles cannot be reused (test `disconnection_is_remembered`). Still planned in `irisd`: on `PrepareForSleep(false)` and on hotplug, re-run discovery, re-read device state, rebuild shadow state, then re-evaluate rules; simulated-device test for each.
 
 ## Privacy
 

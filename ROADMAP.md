@@ -20,13 +20,13 @@ Phases are append-only. Mark complete with an ISO date; do not delete.
 
 ## Phase 1 — Device core
 **Goal:** Talk to the keyboard safely from Rust, from inside a Flatpak, with a minimal CLI.
-**Status:** In progress (`iris-proto` done 2026-10-03; simulated keyboard done 2026-10-04)
+**Status:** In progress (`iris-proto` done 2026-10-03; simulated keyboard and `iris-device` done 2026-10-04)
 **Features delivered:** F-001, F-002, F-003, F-004, F-012 (device-side: diffing and counter), F-025; F-023 and F-024 in skeleton form
 **Deliverables:**
 - [x] Cargo workspace; `iris-proto` with packet builder/parser, closed command enum, address helpers, capability parser, LED map loader
 - [x] Unit tests including the allow-list test (AV-001) and interleaved-report test (AV-008) (2026-10-03; AV-008 at packet level, device-level test follows with `iris-device`)
 - [x] In-memory simulated keyboard implementing V1 (ARCHITECTURE.md §Testing seam) (2026-10-04: `iris_device::sim`, behind the `sim` feature)
-- [ ] `iris-device`: sysfs discovery, identity check (AV-007), exchange with echo matching, transaction guard (AV-005), hotplug
+- [x] `iris-device`: sysfs discovery, identity check (AV-007), exchange with echo matching, transaction guard (AV-005), hotplug (2026-10-04; hotplug here means disconnection detection plus repeatable discovery, with event-driven watching moved to `irisd`; read path run against the real keyboard by the author 2026-10-04, identity `Verified`, zero writes)
 - [ ] Temporary direct-mode `irisctl` (talks to the device itself, no daemon yet): `info`, `get`, `set-mode`, `set-key`, `set-map`, `walk` (lights one LED at a time for AV-006)
 - [ ] Skeleton Flatpak manifest that builds the CLI offline and runs it against the real keyboard; BUILD.md corrected from that experience
 - [ ] Hardware experiments PROTOCOL.md §9 items 1, 2, 3 run and recorded; carried Phase 0 checks closed

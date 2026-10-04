@@ -32,7 +32,7 @@ Data flows one way for control (clients → daemon → device) and back as D-Bus
 
 **`iris-proto` (Rust library, no I/O).** Builds and parses 64-byte packets: checksum, command enum, addresses for configuration and colour space, capability-block parsing, mode and parameter tables, LED index map. Owns the command allow-list as a closed enum. Pure functions, exhaustively unit-tested, no dependency on the operating system.
 
-**`iris-device` (Rust library).** Finds the hidraw node through sysfs, opens it, performs request/reply exchanges with report-ID filtering and timeouts, wraps writes in begin/end transactions, and guarantees an end packet is sent on every exit path. Performs the identity check (VID/PID, `bcdDevice`, capability magic) and refuses writes if it fails. Watches for hotplug.
+**`iris-device` (Rust library).** Finds the hidraw node through sysfs, opens it, performs request/reply exchanges with report-ID filtering and timeouts, wraps writes in begin/end transactions, and guarantees an end packet is sent on every exit path. Performs the identity check (VID/PID, `bcdDevice`, capability magic) and refuses writes if it fails. Detects disconnection and fails fast afterwards; the caller rediscovers. Watching for hotplug events belongs to `irisd`'s event loop (Phase 2). Uses `rustix` for `poll` and `flock`, so it needs no `unsafe`.
 
 **`irisd` (Rust binary).** The only long-lived process. Holds the shadow state of the keyboard and diffs every requested change against it. Applies the rate limiter and write counter. Loads and validates profiles, evaluates match rules against focus events with debouncing, reacts to idle, lock and suspend. Serves the D-Bus API and emits signals. Applies colour calibration on the way out.
 
@@ -46,7 +46,7 @@ Data flows one way for control (clients → daemon → device) and back as D-Bus
 
 ## Key invariants
 
-1. **One owner.** Exactly one process holds the hidraw node open. GUI and CLI never open it.
+1. **One owner.** Exactly one process holds the hidraw node open, enforced between Iris processes by an advisory lock. In shipped code that process is `irisd`; GUI and CLI never open it. Read-only development tools and the Phase 1 temporary direct-mode `irisctl` are the exception (author's decision, 2026-10-04): they open the node through `iris-device` and are bound by the same allow-list, identity check and transaction guard.
 2. **Allow-list.** No packet leaves the process unless its command is a variant of the `iris-proto` command enum (D-005).
 3. **Interface 0 is never touched.** No driver detach, no libusb. Typing cannot be interrupted by Iris.
 4. **Transactions close.** Every begin (`0x01`) is followed by an end (`0x02`), including on error, timeout and shutdown.

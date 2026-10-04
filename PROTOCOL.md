@@ -118,6 +118,8 @@ Observed again 2026-10-04 (raw capture `crates/iris-proto/fixtures/probe-2026-10
 - Block byte `0x13` reads `0xFF` in all three profiles. It is not in the parameter table and its meaning is unknown. **OPEN**
 - All other bytes of the three blocks read zero.
 
+Observed again later on 2026-10-04 through `iris-device` (`examples/read_state`, reads only): profile 1 = mode `0x09`, brightness 4, speed 3, direction 0, random-colour byte `0x01`, colour `00 00 00`; profiles 2 and 3 unchanged; byte `0x13` still `0xFF` in all three. The author had changed profile 1 with OpenRGB in between, so OpenRGB wrote these values, including `0x01` at `0x04`, which is neither of the two values in the parameter table. Its meaning is unknown. **OPEN**
+
 **Ranges are contradictory between sources.** **OPEN**
 - Brightness: OpenRGB uses 0–4; dokutan uses 0–9 for non-Ajazz boards.
 - Speed: OpenRGB uses 0 (fastest) to 5 (slowest); dokutan uses 0–3 and inverts it (`3 − x`).
@@ -152,6 +154,8 @@ dokutan changes the active profile by sending command `0x04` with a fixed 44-byt
 - A single key is one 3-byte packet inside a begin/end pair. **SRC**
 - The reference board's custom map read back as all zeros (never set) on 2026-09-20. **HW**
 - On 2026-10-04 the first packet of profile 1's map (LEDs 0–17) read back `ff 00 00` (red) for every LED, so the map has been written in between, presumably by OpenRGB during write-path validation. **HW** for the bytes; cause unconfirmed.
+- Later the same day a full read of profile 1's map (118 slots, through `iris-device`) returned zero everywhere except slot 49 = `ff 00 00` and slot 65 = `ff ff ff`. LEDs 0–17 were no longer red. Neither slot is in the LED map (§8): 49 lies between `]` (47) and Caps Lock (52), 65 between `#` (64) and left Shift (69). **HW** for the bytes. The author had changed lighting with OpenRGB in between, which accounts for the rewrite. Which keys OpenRGB meant by slots 49 and 65 is not yet recorded. **OPEN**
+- Two consecutive full reads, with nothing touching the keyboard in between, returned identical data, so `0x10` reads return stored colour memory, not live or scratch data. **HW**
 - Whether `0x11` writes land in flash or RAM, and how long a transaction takes, is unmeasured. Iris assumes flash. **OPEN** (AV-004)
 
 ## 8. LED index map

@@ -25,7 +25,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 - Never opens or detaches the boot-keyboard interface; typing is uninterrupted at all times
 - Verifies `bcdDevice` and the `55 aa` capability magic before permitting any write (AV-007)
 - Survives unplug/replug and hidraw renumbering without a restart
-**Status:** Not started
+**Status:** In progress (2026-10-04: sysfs discovery, vendor-interface selection by report descriptor, identity check and disconnection detection in `iris-device`; the discovery example finds `/dev/hidraw1` on the reference machine. Remaining: running inside the sandbox, and hotplug watching in `irisd`.)
 **Notes:** D-003. Discovery logic is proven in `tools/phantom_probe.py`.
 
 ### F-002 Built-in lighting mode control
@@ -226,7 +226,7 @@ Owners of a Tecware Phantom RGB keyboard on the EVision `320f:5064` controller w
 **Acceptance:**
 - On a permission failure the GUI and CLI print the exact udev rule and the three commands to install it (AV-010)
 - The rule file ships in `data/` and inside the Flatpak at a documented path
-**Status:** Not started
+**Status:** In progress (2026-10-04: `DeviceError::PermissionDenied` and `iris_device::permission_help()`; GUI and CLI display pending.)
 
 ### F-026 Background autostart
 **Priority:** Should

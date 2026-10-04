@@ -131,6 +131,12 @@ impl SimulatedKeyboard {
         keyboard
     }
 
+    /// Replaces the capability block, for example to present another
+    /// board's magic in an identity test.
+    pub fn set_capabilities(&mut self, block: [u8; CAPABILITY_SIZE]) {
+        self.capabilities = block;
+    }
+
     /// The capability block as currently held.
     pub fn capabilities(&self) -> &[u8; CAPABILITY_SIZE] {
         &self.capabilities
